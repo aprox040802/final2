@@ -66,7 +66,15 @@
                 </div>
                 <div class="card-body">
                     {% if appointments %}
-                        <div class="table-responsive">
+                            <!-- Pending Patient Requests -->
+                            {% set pending_requests = appointments | selectattr("status", "equalto", "Pending") | list %}
+                            {% if pending_requests %}
+                            <div class="alert alert-warning">
+                                <h6><i class="fas fa-clock me-2"></i>Pending Patient Requests ({{ pending_requests|length }})</h6>
+                                <small>These appointments were requested by patients and need admin approval</small>
+                            </div>
+                            {% endif %}
+
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
@@ -165,13 +173,13 @@
                         <dl class="row">
                             <dt class="col-sm-4">Patient:</dt>
                             <dd class="col-sm-8">{{ appointment.patient.get_full_name() }}</dd>
-                            
+
                             <dt class="col-sm-4">Date:</dt>
                             <dd class="col-sm-8">{{ appointment.appointment_date.strftime('%B %d, %Y') }}</dd>
-                            
+
                             <dt class="col-sm-4">Time:</dt>
                             <dd class="col-sm-8">{{ appointment.appointment_time.strftime('%I:%M %p') }}</dd>
-                            
+
                             <dt class="col-sm-4">Duration:</dt>
                             <dd class="col-sm-8">{{ appointment.duration }} minutes</dd>
                         </dl>
@@ -180,23 +188,23 @@
                         <dl class="row">
                             <dt class="col-sm-4">Type:</dt>
                             <dd class="col-sm-8">{{ appointment.appointment_type }}</dd>
-                            
+
                             <dt class="col-sm-4">Doctor:</dt>
                             <dd class="col-sm-8">Dr. {{ appointment.staff.get_full_name() }}</dd>
-                            
+
                             <dt class="col-sm-4">Status:</dt>
                             <dd class="col-sm-8">
                                 <span class="badge bg-{% if appointment.status == 'Scheduled' %}primary{% elif appointment.status == 'Completed' %}success{% elif appointment.status == 'Cancelled' %}danger{% else %}secondary{% endif %}">
                                     {{ appointment.status }}
                                 </span>
                             </dd>
-                            
+
                             <dt class="col-sm-4">Contact:</dt>
                             <dd class="col-sm-8">{{ appointment.patient.phone }}</dd>
                         </dl>
                     </div>
                 </div>
-                
+
                 {% if appointment.notes %}
                 <hr>
                 <h6>Notes:</h6>

@@ -12,7 +12,15 @@ from utils import generate_invoice_pdf, send_appointment_reminder, get_dashboard
 
 @login_manager.user_loader
 def load_user(user_id):
-    return Staff.query.get(int(user_id))
+    # Try to load staff user first (admin users)
+    staff_user = Staff.query.get(int(user_id))
+    if staff_user:
+        return staff_user
+    
+    # Try to load patient user
+    from models import PatientUser
+    patient_user = PatientUser.query.get(int(user_id))
+    return patient_user
 
 # Authentication Routes
 @app.route('/login', methods=['GET', 'POST'])
@@ -480,3 +488,156 @@ def not_found_error(error):
 def internal_error(error):
     db.session.rollback()
     return render_template('500.html'), 500
+
+# Patient Portal Landing Page
+@app.route('/patient-portal')
+def patient_portal():
+    return render_template('patient_portal.html')
+
+# Patient Portal Routes
+@app.route('/patient/register', methods=['GET', 'POST'])
+def patient_register():
+    form = PatientRegistrationForm()
+    if form.validate_on_submit():
+        # Create patient record
+        patient = Patient(
+            first_name=form.first_name.data,
+            last_name=form.last_name.data,
+            date_of_birth=form.date_of_birth.data,
+            gender=form.gender.data,
+            phone=form.phone.data,
+            email=form.email.data,
+            address=form.address.data,
+            emergency_contact_name=form.emergency_contact_name.data,
+            emergency_contact_phone=form.emergency_contact_phone.data,
+            medical_history=form.medical_history.data,
+            dental_history=form.dental_history.data,
+            allergies=form.allergies.data,
+            insurance_provider=form.insurance_provider.data,
+            insurance_policy=form.insurance_policy.data
+        )
+        db.session.add(patient)
+        db.session.flush()  # Get patient ID
+        
+        # Create patient user account
+        from models import PatientUser
+        patient_user = PatientUser(
+            email=form.email.data,
+            patient_id=patient.id,
+            is_verified=True
+        )
+        patient_user.set_password(form.password.data)
+        db.session.add(patient_user)
+        db.session.commit()
+        
+        flash('Registration successful! You can now login and book appointments.', 'success')
+        return redirect(url_for('patient_login'))
+    
+    return render_template('patient/register.html', form=form)
+
+@app.route('/patient/login', methods=['GET', 'POST'])
+def patient_login():
+    if current_user.is_authenticated:
+        # Check if it's a patient user
+        if hasattr(current_user, 'patient_id'):
+            return redirect(url_for('patient_dashboard'))
+        else:
+            return redirect(url_for('dashboard'))
+    
+    form = PatientLoginForm()
+    if form.validate_on_submit():
+        from models import PatientUser
+        user = PatientUser.query.filter_by(email=form.email.data).first()
+        if user and user.check_password(form.password.data):
+            login_user(user, remember=form.remember_me.data)
+            flash(f'Welcome back, {user.patient.get_full_name()}!', 'success')
+            return redirect(url_for('patient_dashboard'))
+        flash('Invalid email or password', 'danger')
+    
+    return render_template('patient/login.html', form=form)
+
+@app.route('/patient/dashboard')
+@login_required
+def patient_dashboard():
+    # Ensure this is a patient user
+    if not hasattr(current_user, 'patient_id'):
+        flash('Access denied. Please login as a patient.', 'danger')
+        return redirect(url_for('patient_login'))
+    
+    patient = current_user.patient
+    # Get patient's recent appointments
+    recent_appointments = Appointment.query.filter_by(patient_id=patient.id)\
+        .order_by(Appointment.appointment_date.desc(), Appointment.appointment_time.desc())\
+        .limit(5).all()
+    
+    # Get upcoming appointments
+    upcoming_appointments = Appointment.query.filter(
+        Appointment.patient_id == patient.id,
+        Appointment.appointment_date >= date.today(),
+        Appointment.status == 'Scheduled'
+    ).order_by(Appointment.appointment_date, Appointment.appointment_time).all()
+    
+    return render_template('patient/dashboard.html', 
+                         patient=patient, 
+                         recent_appointments=recent_appointments,
+                         upcoming_appointments=upcoming_appointments)
+
+@app.route('/patient/book-appointment', methods=['GET', 'POST'])
+@login_required
+def patient_book_appointment():
+    # Ensure this is a patient user
+    if not hasattr(current_user, 'patient_id'):
+        flash('Access denied. Please login as a patient.', 'danger')
+        return redirect(url_for('patient_login'))
+    
+    form = PatientAppointmentForm()
+    
+    if form.validate_on_submit():
+        # Create appointment request (status as 'Pending' for admin approval)
+        appointment = Appointment(
+            patient_id=current_user.patient_id,
+            staff_id=1,  # Default to first available staff, admin can reassign
+            appointment_date=form.appointment_date.data,
+            appointment_time=form.appointment_time.data,
+            duration=30,  # Default duration
+            appointment_type=form.appointment_type.data,
+            status='Pending',  # Pending admin approval
+            notes=form.notes.data
+        )
+        db.session.add(appointment)
+        db.session.commit()
+        
+        flash('Appointment request submitted successfully! We will contact you to confirm the appointment.', 'success')
+        return redirect(url_for('patient_dashboard'))
+    
+    return render_template('patient/book_appointment.html', form=form)
+
+@app.route('/patient/appointments')
+@login_required
+def patient_appointments():
+    # Ensure this is a patient user
+    if not hasattr(current_user, 'patient_id'):
+        flash('Access denied. Please login as a patient.', 'danger')
+        return redirect(url_for('patient_login'))
+    
+    appointments = Appointment.query.filter_by(patient_id=current_user.patient_id)\
+        .order_by(Appointment.appointment_date.desc()).all()
+    
+    return render_template('patient/appointments.html', appointments=appointments)
+
+@app.route('/patient/profile')
+@login_required
+def patient_profile():
+    # Ensure this is a patient user
+    if not hasattr(current_user, 'patient_id'):
+        flash('Access denied. Please login as a patient.', 'danger')
+        return redirect(url_for('patient_login'))
+    
+    return render_template('patient/profile.html', patient=current_user.patient)
+
+@app.route('/patient/logout')
+@login_required
+def patient_logout():
+    logout_user()
+    flash('You have been logged out successfully.', 'info')
+    return redirect(url_for('patient_login'))
