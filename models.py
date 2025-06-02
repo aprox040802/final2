@@ -2,6 +2,7 @@ from app import db
 from flask_login import UserMixin
 from datetime import datetime
 from sqlalchemy import text
+from sqlalchemy.orm import foreign
 
 class Staff(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -39,8 +40,37 @@ class Patient(db.Model):
     # Relationships
     appointments = db.relationship('Appointment', backref='patient', lazy=True)
     treatments = db.relationship('Treatment', backref='patient', lazy=True)
-    bills = db.relationship('Bill', backref='patient', lazy=True)
-    
+
+    def get_full_name(self):
+        return f"{self.first_name} {self.last_name}"
+
+    def get_age(self):
+        from datetime import date
+        if not self.date_of_birth:
+            return None
+        today = date.today()
+        return today.year - self.date_of_birth.year - ((today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day))
+
+class PatientUser(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patient.id'), unique=True, nullable=False)
+    is_verified = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationship to access the related Patient object
+    patient = db.relationship('Patient', backref=db.backref('user_account', uselist=False))
+
+    def set_password(self, password):
+        from werkzeug.security import generate_password_hash
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        from werkzeug.security import check_password_hash
+        return check_password_hash(self.password_hash, password)
+
+
     def get_full_name(self):
         return f"{self.first_name} {self.last_name}"
     

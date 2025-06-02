@@ -47,6 +47,10 @@ app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
 db.init_app(app)
 mail.init_app(app)
 
+# Initialize Flask-Migrate
+from flask_migrate import Migrate
+migrate = Migrate(app, db)
+
 with app.app_context():
     # Import models to ensure tables are created
     import models

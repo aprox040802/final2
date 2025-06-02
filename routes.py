@@ -12,15 +12,18 @@ from utils import generate_invoice_pdf, send_appointment_reminder, get_dashboard
 
 @login_manager.user_loader
 def load_user(user_id):
-    # Try to load staff user first (admin users)
+    user_type = session.get('user_type')
+    if user_type == 'staff':
+        return Staff.query.get(int(user_id))
+    elif user_type == 'patient':
+        from models import PatientUser
+        return PatientUser.query.get(int(user_id))
+    # fallback: try both (should not happen in normal flow)
     staff_user = Staff.query.get(int(user_id))
     if staff_user:
         return staff_user
-    
-    # Try to load patient user
     from models import PatientUser
-    patient_user = PatientUser.query.get(int(user_id))
-    return patient_user
+    return PatientUser.query.get(int(user_id))
 
 # Authentication Routes
 @app.route('/login', methods=['GET', 'POST'])
@@ -32,6 +35,8 @@ def login():
     if form.validate_on_submit():
         user = Staff.query.filter_by(username=form.username.data).first()
         if user and check_password_hash(user.password_hash, form.password.data):
+            from flask import session
+            session['user_type'] = 'staff'
             login_user(user, remember=form.remember_me.data)
             next_page = request.args.get('next')
             flash(f'Welcome back, {user.get_full_name()}!', 'success')
@@ -42,7 +47,9 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
+    from flask import session
     logout_user()
+    session.pop('user_type', None)
     flash('You have been logged out successfully.', 'info')
     return redirect(url_for('login'))
 
@@ -549,6 +556,8 @@ def patient_login():
         from models import PatientUser
         user = PatientUser.query.filter_by(email=form.email.data).first()
         if user and user.check_password(form.password.data):
+            from flask import session
+            session['user_type'] = 'patient'
             login_user(user, remember=form.remember_me.data)
             flash(f'Welcome back, {user.patient.get_full_name()}!', 'success')
             return redirect(url_for('patient_dashboard'))
@@ -559,8 +568,9 @@ def patient_login():
 @app.route('/patient/dashboard')
 @login_required
 def patient_dashboard():
-    # Ensure this is a patient user
-    if not hasattr(current_user, 'patient_id'):
+    from models import PatientUser
+    print("[DEBUG] Current user:", current_user, "Type:", type(current_user), "Patient ID:", getattr(current_user, 'patient_id', None))
+    if not isinstance(current_user, PatientUser):
         flash('Access denied. Please login as a patient.', 'danger')
         return redirect(url_for('patient_login'))
     
@@ -585,8 +595,9 @@ def patient_dashboard():
 @app.route('/patient/book-appointment', methods=['GET', 'POST'])
 @login_required
 def patient_book_appointment():
-    # Ensure this is a patient user
-    if not hasattr(current_user, 'patient_id'):
+    from models import PatientUser
+    print("[DEBUG] Current user:", current_user, "Type:", type(current_user), "Patient ID:", getattr(current_user, 'patient_id', None))
+    if not isinstance(current_user, PatientUser):
         flash('Access denied. Please login as a patient.', 'danger')
         return redirect(url_for('patient_login'))
     
@@ -615,8 +626,9 @@ def patient_book_appointment():
 @app.route('/patient/appointments')
 @login_required
 def patient_appointments():
-    # Ensure this is a patient user
-    if not hasattr(current_user, 'patient_id'):
+    from models import PatientUser
+    print("[DEBUG] Current user:", current_user, "Type:", type(current_user), "Patient ID:", getattr(current_user, 'patient_id', None))
+    if not isinstance(current_user, PatientUser):
         flash('Access denied. Please login as a patient.', 'danger')
         return redirect(url_for('patient_login'))
     
@@ -628,8 +640,9 @@ def patient_appointments():
 @app.route('/patient/profile')
 @login_required
 def patient_profile():
-    # Ensure this is a patient user
-    if not hasattr(current_user, 'patient_id'):
+    from models import PatientUser
+    print("[DEBUG] Current user:", current_user, "Type:", type(current_user), "Patient ID:", getattr(current_user, 'patient_id', None))
+    if not isinstance(current_user, PatientUser):
         flash('Access denied. Please login as a patient.', 'danger')
         return redirect(url_for('patient_login'))
     
@@ -638,6 +651,8 @@ def patient_profile():
 @app.route('/patient/logout')
 @login_required
 def patient_logout():
+    from flask import session
     logout_user()
+    session.pop('user_type', None)
     flash('You have been logged out successfully.', 'info')
     return redirect(url_for('patient_login'))

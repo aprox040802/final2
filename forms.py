@@ -8,6 +8,11 @@ class LoginForm(FlaskForm):
     password = PasswordField('Password', validators=[DataRequired()])
     remember_me = BooleanField('Remember Me')
 
+class PatientLoginForm(FlaskForm):
+    email = EmailField('Email', validators=[DataRequired(), Email(), Length(max=120)])
+    password = PasswordField('Password', validators=[DataRequired()])
+    remember_me = BooleanField('Remember Me')
+
 class PatientForm(FlaskForm):
     first_name = StringField('First Name', validators=[DataRequired(), Length(max=50)])
     last_name = StringField('Last Name', validators=[DataRequired(), Length(max=50)])
@@ -23,6 +28,33 @@ class PatientForm(FlaskForm):
     allergies = TextAreaField('Allergies')
     insurance_provider = StringField('Insurance Provider', validators=[Length(max=100)])
     insurance_policy = StringField('Insurance Policy Number', validators=[Length(max=100)])
+
+class PatientRegistrationForm(FlaskForm):
+    first_name = StringField('First Name', validators=[DataRequired(), Length(max=50)])
+    last_name = StringField('Last Name', validators=[DataRequired(), Length(max=50)])
+    date_of_birth = DateField('Date of Birth', validators=[DataRequired()])
+    gender = SelectField('Gender', choices=[('Male', 'Male'), ('Female', 'Female'), ('Other', 'Other')], validators=[DataRequired()])
+    phone = StringField('Phone', validators=[DataRequired(), Length(max=20)])
+    email = EmailField('Email', validators=[DataRequired(), Email(), Length(max=120)])
+    address = TextAreaField('Address')
+    emergency_contact_name = StringField('Emergency Contact Name', validators=[Length(max=100)])
+    emergency_contact_phone = StringField('Emergency Contact Phone', validators=[Length(max=20)])
+    medical_history = TextAreaField('Medical History')
+    dental_history = TextAreaField('Dental History')
+    allergies = TextAreaField('Allergies')
+    insurance_provider = StringField('Insurance Provider', validators=[Length(max=100)])
+    insurance_policy = StringField('Insurance Policy Number', validators=[Length(max=100)])
+    password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])
+    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), Length(min=6)])
+
+    def validate(self, extra_validators=None):
+        rv = super().validate(extra_validators=extra_validators)
+        if not rv:
+            return False
+        if self.password.data != self.confirm_password.data:
+            self.confirm_password.errors.append('Passwords must match.')
+            return False
+        return True
 
 class AppointmentForm(FlaskForm):
     patient_id = SelectField('Patient', coerce=int, validators=[DataRequired()])
@@ -49,6 +81,22 @@ class AppointmentForm(FlaskForm):
                                      ('Consultation', 'Consultation')
                                  ], validators=[DataRequired()])
     notes = TextAreaField('Notes')
+
+class PatientAppointmentForm(FlaskForm):
+    appointment_date = DateField('Date', validators=[DataRequired()])
+    appointment_time = TimeField('Time', validators=[DataRequired()])
+    appointment_type = SelectField('Appointment Type',
+                                 choices=[
+                                     ('Check-up', 'Check-up'),
+                                     ('Cleaning', 'Cleaning'),
+                                     ('Filling', 'Filling'),
+                                     ('Root Canal', 'Root Canal'),
+                                     ('Extraction', 'Extraction'),
+                                     ('Orthodontics', 'Orthodontics'),
+                                     ('Emergency', 'Emergency'),
+                                     ('Consultation', 'Consultation')
+                                 ], validators=[DataRequired()])
+    notes = TextAreaField('Notes', validators=[Optional()])
 
 class TreatmentForm(FlaskForm):
     patient_id = SelectField('Patient', coerce=int, validators=[DataRequired()])
